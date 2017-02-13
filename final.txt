@@ -1,0 +1,152 @@
+drop dataverse channels if exists;
+create dataverse channels;
+use dataverse channels;
+
+create type UserType as closed {
+    recordId: string,
+    userName: string,
+    userId: string,
+    password: string,
+    email: string
+}
+
+create dataset UserDataset (UserType)
+primary key userId;
+
+create type UserSubscriptionType as closed {
+    recordId: string,
+    userSubscriptionId: string,
+    channelSubscriptionId: string,
+    userId: string,
+    channelName: string,
+    timestamp: string,
+    latestDeliveredResultTime: string,
+    resultsDataset: string
+}
+
+create dataset UserSubscriptionDataset(UserSubscriptionType)
+primary key recordId;
+
+create type ChannelSubscriptionType as closed{
+    recordId: string,
+    channelName:string,
+    parameters: string,
+    brokerName: string,
+    channelSubscriptionId: string,
+    latestChannelExecutionTime: string
+}
+
+create dataset ChannelSubscriptionDataset(ChannelSubscriptionType)
+primary key recordId;
+
+create broker brokerF at "http://localhost:8989/notifybroker";
+
+create type Donor as {
+        name: string,
+        phone_number: int32,
+        address: string,
+        blood_group: string,
+        email_address: string,
+        time_of_join:datetime,
+		status:string,
+		preferred_time:string
+	
+    }
+create dataset Donors(Donor)
+primary key  email_address;
+
+create type Subscriber as {
+        name: string,
+        phone_number: int32,
+        address: string,
+        gcm_reg_id: int32,
+        email_address: string,
+        password:string
+	
+    }
+create dataset Subscribers(Subscriber)
+primary key gcm_reg_id;
+
+
+
+create function NearbyTweetsContainingText($bloodGroup ) {
+
+for $report in dataset Donors
+where  $report.status = "active"
+and $report.blood_group  = $bloodGroup
+
+return {
+
+"name":$report.name ,
+"number":$report. phone_number,
+"address":$report. address,
+"current":current-datetime( ) 
+}
+
+};
+
+create function matchBloodGroupandLocation1($bloodGroup, $location ) {
+
+for $report in dataset Donors
+let $historyStart :=
+current-datetime( ) - day-time-duration("PT30M")+day-time-duration("PT06H")
+where $report.time_of_join >= $historyStart
+and $report.status = "active"
+and $report.address = $location
+and $report.blood_group  = $bloodGroup
+
+return {
+
+"name":$report.name ,
+"number":$report. phone_number,
+"address":$report. address,
+"current":current-datetime( ) 
+}
+
+};
+
+create function matchBloodGroupandLocationandTime1($bloodGroup, $location , $time) {
+
+for $report in dataset Donors
+let $historyStart :=
+current-datetime( ) - day-time-duration("PT12H")+day-time-duration("PT06H")
+where $report.time_of_join >= $historyStart
+and $report.status = "active"
+and $report.address = $location
+and $report.blood_group  = $bloodGroup
+and $report.preferred_time= $time
+return {
+
+"name":$report.name ,
+"number":$report. phone_number,
+"address":$report. address,
+"current":current-datetime( ) 
+}
+
+};
+
+create repetitive channel nearbyTweetChannel using NearbyTweetsContainingText@1 period duration("PT60S");
+create repetitive channel nearbyDonationGroupLocation using matchBloodGroupandLocation1@2 period duration("PT60S");
+create repetitive channel nearbyDonationGroupLocTime using matchBloodGroupandLocationandTime1@3 period duration("PT60S");
+
+
+insert into dataset Donors(
+[{"name":"Tasnim","phone_number":01717223936,"address":"eskaton","blood_group":"B+","email_address":"moury555@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"Kabir","phone_number":01717223936,"address":"eskaton","blood_group":"B+","email_address":"moury556@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"Tasnim1","phone_number":01717223936,"address":"eskaton","blood_group":"O+","email_address":"moury557@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"kabir1","phone_number":01717223936,"address":"eskaton","blood_group":"AB+","email_address":"x555@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"Tasnim2","phone_number":01717223936,"address":"eskaton","blood_group":"A+","email_address":"moury558@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"kabir2","phone_number":01717223936,"address":"eskaton","blood_group":"O+","email_address":"x557@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"},
+{"name":"kabir3","phone_number":01717223936,"address":"eskaton","blood_group":"O+","email_address":"x558@yahoo.com","time_of_join":datetime("2016-09-10T16:30:00"),"status":"active","preferred_time":"Sunday"}
+
+]
+);
+
+
+for $test in dataset nearbyTweetChannelSubscriptions
+return $test;
+
+for $test in dataset nearbyTweetChannelResults
+return $test;
+
+
